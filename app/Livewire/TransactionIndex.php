@@ -19,6 +19,8 @@ class TransactionIndex extends Component
 
     public $search = '';
     public $filterType = 'all';
+    public $fromDate;
+    public $toDate;
 
     public $totalIncome = 0;
     public $totalExpense = 0;
@@ -47,17 +49,33 @@ class TransactionIndex extends Component
 
     public function mount()
     {
-        // initialize chart data (no year filter)
         $this->updateChartData();
     }
 
-    public function updatingSearch()
+    public function updatedSearch()
     {
         $this->resetPage();
+        $this->updateChartData();
+        $this->dispatch('chart-updated');
     }
 
     public function updatedFilterType()
     {
+        $this->resetPage();
+        $this->updateChartData();
+        $this->dispatch('chart-updated');
+    }
+
+    public function updatedFromDate()
+    {
+        $this->resetPage();
+        $this->updateChartData();
+        $this->dispatch('chart-updated');
+    }
+
+    public function updatedToDate()
+    {
+        $this->resetPage();
         $this->updateChartData();
         $this->dispatch('chart-updated');
     }
@@ -150,15 +168,12 @@ class TransactionIndex extends Component
         ];
 
         if ($this->image) {
-            $imageName = time() . '_' . $this->image->getClientOriginalName();
-            $imageName = str_replace(' ', '_', $imageName);
-            $imagePath = $this->image->storeAs('transactions', $imageName, 'public');
+            $imageName = time() . '_' . str_replace(' ', '_', $this->image->getClientOriginalName());
+            $data['image'] = $this->image->storeAs('transactions', $imageName, 'public');
 
             if ($this->existingImage && Storage::disk('public')->exists($this->existingImage)) {
                 Storage::disk('public')->delete($this->existingImage);
             }
-
-            $data['image'] = $imagePath;
         } elseif ($this->transactionId) {
             $tx = Transaction::find($this->transactionId);
             if ($tx && $tx->image) {
@@ -215,18 +230,19 @@ class TransactionIndex extends Component
 
     private function loadYearlyChart()
     {
-        // Aggregate by month (across all years) so the chart shows month trends without a year filter
         $monthly = Transaction::select(
-            DB::raw("MONTH(date) as month"),
-            DB::raw("SUM(CASE WHEN type='income' THEN amount ELSE 0 END) as income"),
-            DB::raw("SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) as expense")
-        )
-        ->where('user_id', Auth::id())
-        ->when($this->filterType !== 'all', fn($q) => $q->where('type', $this->filterType))
-        ->groupBy('month')
-        ->orderBy('month')
-        ->get()
-        ->keyBy('month');
+                DB::raw("EXTRACT(MONTH FROM date) AS month"),
+                DB::raw("SUM(CASE WHEN type='income' THEN amount ELSE 0 END) AS income"),
+                DB::raw("SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) AS expense")
+            )
+            ->where('user_id', Auth::id())
+            ->when($this->filterType !== 'all', fn($q) => $q->where('type', $this->filterType))
+            ->when($this->fromDate, fn($q) => $q->whereDate('date', '>=', $this->fromDate))
+            ->when($this->toDate, fn($q) => $q->whereDate('date', '<=', $this->toDate))
+            ->groupBy(DB::raw("EXTRACT(MONTH FROM date)"))
+            ->orderBy(DB::raw("EXTRACT(MONTH FROM date)"))
+            ->get()
+            ->keyBy('month');
 
         $labels = [];
         $income = [];
@@ -245,17 +261,43 @@ class TransactionIndex extends Component
 
     public function render()
     {
-        $query = Transaction::where('user_id', Auth::id());
+        $query = Transaction::where('user_id', Auth::id())
+            ->when($this->search, function ($q) {
+                $searchTerms = preg_split('/[\s,]+/', $this->search, -1, PREG_SPLIT_NO_EMPTY);
 
-        if ($this->search) $query->where('title', 'like', '%' . $this->search . '%');
-        if ($this->filterType !== 'all') $query->where('type', $this->filterType);
-
+                return $q->where(function ($qq) use ($searchTerms) {
+                    foreach ($searchTerms as $term) {
+                        $term = trim($term);
+                        if (!empty($term)) {
+                            $qq->where(function ($qqq) use ($term) {
+                                $qqq->where('title', 'like', '%' . $term . '%')
+                                    ->orWhere('description', 'like', '%' . $term . '%')
+                                    ->orWhere(DB::raw('CAST(amount AS TEXT)'), 'like', '%' . $term . '%')
+                                    ->orWhere(DB::raw("TO_CHAR(date, 'DD FMMonth YYYY')"), 'like', '%' . $term . '%')
+                                    ->orWhere(DB::raw("TO_CHAR(date, 'YYYY-MM-DD')"), 'like', '%' . $term . '%');
+                            });
+                        }
+                    }
+                });
+            })
+            ->when($this->filterType !== 'all', fn($q) => $q->where('type', $this->filterType))
+            ->when($this->fromDate, fn($q) => $q->whereDate('date', '>=', $this->fromDate))
+            ->when($this->toDate, fn($q) => $q->whereDate('date', '<=', $this->toDate));
 
         $transactions = $query->orderBy('date', 'desc')->paginate(20);
 
-        // compute totals (no year filter)
-        $this->totalIncome = Transaction::where('user_id', Auth::id())->where('type', 'income')->sum('amount');
-        $this->totalExpense = Transaction::where('user_id', Auth::id())->where('type', 'expense')->sum('amount');
+        // Totals sesuai filter
+        $this->totalIncome = Transaction::where('user_id', Auth::id())
+            ->where('type', 'income')
+            ->when($this->fromDate, fn($q) => $q->whereDate('date', '>=', $this->fromDate))
+            ->when($this->toDate, fn($q) => $q->whereDate('date', '<=', $this->toDate))
+            ->sum('amount');
+
+        $this->totalExpense = Transaction::where('user_id', Auth::id())
+            ->where('type', 'expense')
+            ->when($this->fromDate, fn($q) => $q->whereDate('date', '>=', $this->fromDate))
+            ->when($this->toDate, fn($q) => $q->whereDate('date', '<=', $this->toDate))
+            ->sum('amount');
 
         return view('livewire.transaction-index', [
             'transactions' => $transactions,

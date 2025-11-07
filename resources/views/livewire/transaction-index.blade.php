@@ -58,40 +58,68 @@
         </div>
 
 
+      <!-- Filter + Search -->
+<div class="bg-white p-4 rounded-lg shadow mb-6">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
 
-        <!-- Filter + Search -->
-        <div class="bg-white p-4 rounded-lg shadow mb-6">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <!-- Search -->
+        <div class="relative w-full md:w-1/3">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+            </span>
+            <input 
+                wire:model.live.debounce.300ms="search" 
+                type="text" 
+                placeholder="Cari transaksi (judul, tanggal, jumlah)..." 
+                class="w-full pl-10 pr-10 py-2 rounded-full border focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-sm"
+                autocomplete="off"
+            >
+            @if($search)
+                <button 
+                    wire:click="$set('search', '')" 
+                    class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+                >
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            @endif
+        </div>
 
-                <!-- Search -->
-                <div class="relative w-full md:w-1/3">
-                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-                            stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                    </span>
-                    <input wire:model.debounce.300ms="search" type="text" placeholder="Cari transaksi..."
-                        class="w-full pl-10 pr-4 py-2 rounded-full border focus:ring-2 focus:ring-blue-400 focus:outline-none shadow-sm">
-                </div>
+        <!-- Filter + Tanggal -->
+        <div class="flex flex-wrap items-center gap-3 mt-3 md:mt-0">
+            <select 
+                wire:model.live="filterType"
+                class="border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+            >
+                <option value="all">Semua</option>
+                <option value="income">Pemasukan</option>
+                <option value="expense">Pengeluaran</option>
+            </select>
 
-                <!-- Filter + Tanggal -->
-                <div class="flex flex-wrap gap-3 mt-3 md:mt-0">
-                    <select wire:model="filterType"
-                        class="border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none">
-                        <option value="all">Semua</option>
-                        <option value="income">Pemasukan</option>
-                        <option value="expense">Pengeluaran</option>
-                    </select>
+            <div class="flex items-center gap-2">
+                <label class="text-sm text-gray-600">Dari</label>
+                <input 
+                    wire:model.live="fromDate" 
+                    type="date"
+                    class="border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                >
 
-                    <input wire:model="fromDate" type="date"
-                        class="border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none">
-                    <input wire:model="toDate" type="date"
-                        class="border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none">
-                </div>
+                <label class="text-sm text-gray-600">Sampai</label>
+                <input 
+                    wire:model.live="toDate" 
+                    type="date"
+                    class="border p-2 rounded-lg focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                >
             </div>
         </div>
+    </div>
+</div>
+
 
         {{--
         <!-- Flash Message -->
